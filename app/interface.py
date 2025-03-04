@@ -1,3 +1,9 @@
+from typing import List, Dict, Optional
+import traceback
+import weaviate
+import weaviate.connect as wvc
+from sentence_transformers import SentenceTransformer
+
 class WeaviateInterface:
     def __init__(self, generate_embeddings: bool = True, hf_model_name: str = "multi-qa-distilbert-cos-v1"):
         self.generate_embeddings = generate_embeddings

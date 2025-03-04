@@ -1,5 +1,5 @@
 import streamlit as st
-from .interface import WeaviateInterface
+from interface import WeaviateInterface
 
 def main():
     st.title("Weaviate Vector Database Manager")
