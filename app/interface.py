@@ -2,7 +2,10 @@ from typing import List, Dict, Optional
 import traceback
 import weaviate
 import weaviate.connect as wvc
+from weaviate.classes.query import Filter
 from sentence_transformers import SentenceTransformer
+
+from constants import HF_EMBEDDING_MODEL_NAME
 
 class WeaviateInterface:
     def __init__(self, generate_embeddings: bool = True, hf_model_name: str = "multi-qa-distilbert-cos-v1"):
@@ -39,11 +42,11 @@ class WeaviateInterface:
     def store(self, 
               input_data: List[Dict],  
               collections_name: str, 
-              key_to_be_embedded: Optional[str] = None, 
+              text_to_be_embedded: Optional[str] = None, 
               embeddings: Optional[List[List[float]]] = None
         ) -> Dict[str, str]:
         if self.generate_embeddings:
-            assert key_to_be_embedded
+            assert text_to_be_embedded
         else:
             assert embeddings
             assert len(input_data) == len(embeddings)
@@ -57,7 +60,7 @@ class WeaviateInterface:
                 properties = input_data[i]
 
                 if self.generate_embeddings:
-                    embedding = self.embedding_model.encode(properties[key_to_be_embedded]).tolist()
+                    embedding = self.embedding_model.encode(text_to_be_embedded).tolist()
                 else:
                     embedding = embeddings[i]
 
@@ -123,6 +126,74 @@ class WeaviateInterface:
             print("An error occurred in Storer.retrieve:")
             traceback.print_exc()
             self.client.close()
+
+    def update_item(
+            self, 
+            collections_name: str, 
+            item: Dict,
+            updated_text: str, 
+            key_to_be_updated: str
+        ) -> Dict:
+
+        updated_item = item
+        updated_item[key_to_be_updated] = updated_text
+
+        text_to_be_embedded = updated_item["head"]
+
+        if key_to_be_updated == "responses":
+            text_to_be_embedded += updated_item["responses"]
+
+        store_result = self.store(
+            collections_name=collections_name,
+            input_data=[item],
+            text_to_be_embedded=text_to_be_embedded
+        )
+        if store_result["status"].startswith("Stored"):
+            self.delete_item(
+                collections_name, 
+                item["uuid"], 
+                item["thread_ts"]
+            )
+        else:
+            updated_item = {"status": "update failed"}
+        return updated_item
+
+        
+
+        
+
+    def delete_item(
+            self, 
+            collections_name: str,
+            uuid: Optional[str],
+            thread_ts: Optional[str]
+        ) -> Dict:
+        collection = self.client.collections.get(collections_name)
+
+        if uuid:
+            result = collection.data.delete_by_id(uuid)
+            deleted_item = {"uuid": uuid, "status": "deleted"}
+        elif thread_ts:
+            result = collection.data.delete_many(
+                where=Filter.by_property("thread_ts").like(thread_ts),
+                verbose=True
+            )
+            deleted_item = {"thread_ts": thread_ts, "status": "deleted"}
+        else:
+            result = {"status": "No UUID or thread_ts provided."}
+
+        print(result)
+        return deleted_item
+    
+    # def delete_all_items(self, collections_name: str) -> Dict:
+    #     collection = self.client.collections.get(collections_name)
+    #     result = collection.data.delete_many(
+    #         where=Filter.by_property("thread_ts").like("*"),
+    #         dry_run=True,
+    #         verbose=True
+    #     )
+    #     return result
+
     
     def get_collection_names(self) -> list[str]:
         assert self.client.is_live()
@@ -140,11 +211,12 @@ class WeaviateInterface:
         try:
             collection = self.client.collections.get(collection_name)
             contents = collection.iterator()
-            contents = [content.properties for content in contents]
-            if len(contents) == 0:
+            content_properties = [content.properties for content in contents]
+
+            if len(content_properties) == 0:
                 print("No contents found.")
                 return None
-            return contents
+            return content_properties
         except Exception as e:
             print("An error occurred in Storer.view_contents_of_collection:")
             traceback.print_exc()
