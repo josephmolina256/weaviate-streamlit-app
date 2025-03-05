@@ -44,7 +44,7 @@ def main():
                             weaviate_interface.delete_item(selected_collection, item["uuid"], item["thread_ts"])
                             st.session_state.contents.pop(i)
                     with col3:
-                        st.link_button(label="View in Slack", url=f"https://{SLACK_WORKSPACE_NAME}.slack.com/archives/{item['channel_id']}/p{item['thread_ts'].replace('.', '')}?thread_ts={item['thread_ts'].replace('.', '')}&cid={item['channel_id']}")
+                        st.link_button(label="View in Slack", url=f"https://{SLACK_WORKSPACE_NAME}.slack.com/archives/{item['channel_id']}/p{item['thread_ts'].replace('.', '')}?thread_ts={item['thread_ts']}&cid={item['channel_id']}")
 
                     if st.session_state.edit_states.get(item["uuid"], False):
                         text_value = item.get("responses", None)
